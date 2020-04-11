@@ -75,6 +75,8 @@ func TestTotalTime(t *testing.T) {
 	}
 
 	t.Run(test.name, func(t *testing.T) {
+		// Windows has a hard time with small amounts of time, so this delay is necessary
+		time.Sleep(1 * time.Millisecond)
 		got := test.inputTrace.TotalTime()
 		if got == 0 {
 			t.Errorf("Expected total time 0, got %d \n", got)
@@ -223,6 +225,8 @@ func TestLogIfLong(t *testing.T) {
 				tt.sampleTrace.steps[index].stepTime = currentTime.Add(mod.delay)
 			}
 
+			// Windows has a hard time with small amounts of time, so this delay is necessary
+			time.Sleep(time.Millisecond)
 			tt.sampleTrace.LogIfLong(tt.threshold)
 
 			for _, msg := range tt.expectedMessages {

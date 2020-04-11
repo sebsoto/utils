@@ -21,6 +21,7 @@ import (
 	"io"
 	"io/ioutil"
 	osexec "os/exec"
+	"strings"
 	"testing"
 	"time"
 )
@@ -68,21 +69,23 @@ func TestExecutorNoArgs(t *testing.T) {
 func TestExecutorWithArgs(t *testing.T) {
 	ex := New()
 
-	cmd := ex.Command("echo", "stdout")
+	cmdStrings := outputWriterCommand("stdout")
+	cmd := ex.Command(cmdStrings[0], cmdStrings[1:]...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Errorf("expected success, got %+v", err)
 	}
-	if string(out) != "stdout\n" {
+	if strings.TrimSpace(string(out)) != "stdout" {
 		t.Errorf("unexpected output: %q", string(out))
 	}
 
-	cmd = ex.Command("/bin/sh", "-c", "echo stderr > /dev/stderr")
+	cmdStrings = errorWriterCommand("stderr")
+	cmd = ex.Command(cmdStrings[0], cmdStrings[1:]...)
 	out, err = cmd.CombinedOutput()
 	if err != nil {
 		t.Errorf("expected success, got %+v", err)
 	}
-	if string(out) != "stderr\n" {
+	if strings.TrimSpace(string(out)) != "stderr" {
 		t.Errorf("unexpected output: %q", string(out))
 	}
 }
@@ -90,8 +93,8 @@ func TestExecutorWithArgs(t *testing.T) {
 func TestLookPath(t *testing.T) {
 	ex := New()
 
-	shExpected, _ := osexec.LookPath("sh")
-	sh, _ := ex.LookPath("sh")
+	shExpected, _ := osexec.LookPath(shell)
+	sh, _ := ex.LookPath(shell)
 	if sh != shExpected {
 		t.Errorf("unexpected result for LookPath: got %s, expected %s", sh, shExpected)
 	}
@@ -120,7 +123,8 @@ func TestExecutableNotFound(t *testing.T) {
 }
 
 func TestStopBeforeStart(t *testing.T) {
-	cmd := New().Command("echo", "hello")
+	cmdStrings := outputWriterCommand("hello")
+	cmd := New().Command(cmdStrings[0], cmdStrings[1:]...)
 
 	// no panic calling Stop before calling Run
 	cmd.Stop()
@@ -136,7 +140,8 @@ func TestTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
 	defer cancel()
 
-	err := exec.CommandContext(ctx, "sleep", "2").Run()
+	cmdStrings := sleepCommand("2")
+	err := exec.CommandContext(ctx, cmdStrings[0], cmdStrings[1:]...).Run()
 	if err != context.DeadlineExceeded {
 		t.Errorf("expected %v but got %v", context.DeadlineExceeded, err)
 	}
@@ -145,27 +150,30 @@ func TestTimeout(t *testing.T) {
 func TestSetEnv(t *testing.T) {
 	ex := New()
 
-	out, err := ex.Command("/bin/sh", "-c", "echo $FOOBAR").CombinedOutput()
+	cmdStrings := printEnvVarCommand("FOOBAR")
+	out, err := ex.Command(cmdStrings[0], cmdStrings[1:]...).CombinedOutput()
 	if err != nil {
 		t.Errorf("expected success, got %+v", err)
 	}
-	if string(out) != "\n" {
+	// Check that the environment variable is not set to what it will be set to
+	if strings.TrimSpace(string(out)) == "baz" {
 		t.Errorf("unexpected output: %q", string(out))
 	}
 
-	cmd := ex.Command("/bin/sh", "-c", "echo $FOOBAR")
+	cmd := ex.Command(cmdStrings[0], cmdStrings[1:]...)
 	cmd.SetEnv([]string{"FOOBAR=baz"})
 	out, err = cmd.CombinedOutput()
 	if err != nil {
 		t.Errorf("expected success, got %+v", err)
 	}
-	if string(out) != "baz\n" {
+	if strings.TrimSpace(string(out)) != "baz" {
 		t.Errorf("unexpected output: %q", string(out))
 	}
 }
 
 func TestStdIOPipes(t *testing.T) {
-	cmd := New().Command("/bin/sh", "-c", "echo 'OUT'>&1; echo 'ERR'>&2")
+	cmdStrings := errorAndOutputWriterCommand("OUT", "ERR")
+	cmd := New().Command(cmdStrings[0], cmdStrings[1:]...)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -190,11 +198,11 @@ func TestStdIOPipes(t *testing.T) {
 		t.Errorf("expected Start() not to error, got: %v", err)
 	}
 
-	if e, a := "OUT\n", <-stdout; e != a {
+	if e, a := "OUT", strings.TrimSpace(<-stdout); e != a {
 		t.Errorf("expected StdOut to be '%s', got: '%v'", e, a)
 	}
 
-	if e, a := "ERR\n", <-stderr; e != a {
+	if e, a := "ERR", strings.TrimSpace(<-stderr); e != a {
 		t.Errorf("expected StdErr to be '%s', got: '%v'", e, a)
 	}
 

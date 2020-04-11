@@ -54,14 +54,18 @@ func TestTempDir(t *testing.T) {
 	}
 
 	// Create a couple of files
-	_, err = dir.NewFile("ONE")
+	f, err := dir.NewFile("ONE")
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = dir.NewFile("TWO")
+	f.Close()
+
+	f, err = dir.NewFile("TWO")
 	if err != nil {
 		t.Fatal(err)
 	}
+	f.Close()
+
 	// We can't create the same file twice
 	_, err = dir.NewFile("TWO")
 	if err == nil {
